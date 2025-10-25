@@ -5,6 +5,8 @@ import {
   HandDistributionStats,
   runSimulationInWorker
 } from './lib/simulation'
+import { toast } from 'sonner'
+import { Toaster } from '@/components/ui/sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -95,6 +97,7 @@ Bonus Bets (optional):
       setSimulationProgress(100)
     } catch (err) {
       console.error('Simulation worker error', err)
+      toast.error(String(err ?? 'Unknown error'))
     } finally {
       setTimeout(() => {
         setIsSimulating(false)
@@ -144,12 +147,16 @@ Bonus Bets (optional):
           </CardContent>
         </Card>
 
+          {/* Sonner Toaster */}
+          <Toaster />
+
         <Card>
           <CardHeader>
             <CardTitle>Simulation Control</CardTitle>
             <CardDescription>Configure and run simulation to analyze betting returns</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Error toasts are shown via Sonner; no persistent error card needed */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="num-hands">Number of Hands</Label>
