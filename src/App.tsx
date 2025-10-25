@@ -3,7 +3,7 @@ import {
   PayoutConfig,
   SimulationResult,
   HandDistributionStats,
-  simulateHands
+  runSimulationInWorker
 } from './lib/simulation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -28,6 +28,7 @@ function App() {
   const [handDistribution, setHandDistribution] = useState<HandDistributionStats | null>(null)
   const [numHands, setNumHands] = useState(1000000)
   const [minThreeCardFlushRank, setMinThreeCardFlushRank] = useState(9) // Minimum high card value for 3-card flush (0 = none)
+  const [seedValue, setSeedValue] = useState<string | number | undefined>(undefined)
   
   const [payoutConfig, setPayoutConfig] = useState<PayoutConfig>({
     flushRush: {
@@ -81,19 +82,25 @@ Bonus Bets (optional):
   const simulateHandsUI = async () => {
     setIsSimulating(true)
     setSimulationProgress(0)
-    const summary = await simulateHands(
-      numHands,
-      payoutConfig,
-      minThreeCardFlushRank,
-      (progress) => setSimulationProgress(progress)
-    )
-    setResults(summary.results)
-    setHandDistribution(summary.handDistribution)
-    setSimulationProgress(100)
-    setTimeout(() => {
-      setIsSimulating(false)
-      setSimulationProgress(0)
-    }, 500)
+    try {
+      const summary = await runSimulationInWorker(
+        numHands,
+        payoutConfig,
+        minThreeCardFlushRank,
+        (progress) => setSimulationProgress(progress),
+        seedValue
+      )
+      setResults(summary.results)
+      setHandDistribution(summary.handDistribution)
+      setSimulationProgress(100)
+    } catch (err) {
+      console.error('Simulation worker error', err)
+    } finally {
+      setTimeout(() => {
+        setIsSimulating(false)
+        setSimulationProgress(0)
+      }, 500)
+    }
   }
 
   const formatPercentage = (value: number) => {
@@ -181,6 +188,19 @@ Bonus Bets (optional):
                   <option value={14}>Ace</option>
                 </select>
                 <p className="text-xs text-muted-foreground">Fold 3-card flush if high card is lower</p>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="seed">Random Seed (optional)</Label>
+                <Input
+                  id="seed"
+                  type="text"
+                  placeholder="leave empty for secure RNG"
+                  value={seedValue as any}
+                  onChange={(e) => setSeedValue(e.target.value || undefined)}
+                  disabled={isSimulating}
+                />
+                <p className="text-xs text-muted-foreground">Provide a string or number to get deterministic runs</p>
               </div>
             </div>
             
