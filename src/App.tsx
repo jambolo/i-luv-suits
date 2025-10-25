@@ -337,7 +337,7 @@ Bonus Bets (optional):
                     <TableHead className="text-right">Total Won</TableHead>
                     <TableHead className="text-right">Hands Won</TableHead>
                     <TableHead className="text-right">Win Rate</TableHead>
-                    <TableHead className="text-right">Expected Return</TableHead>
+                    <TableHead className="text-right">Return</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
