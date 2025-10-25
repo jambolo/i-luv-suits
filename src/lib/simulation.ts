@@ -31,14 +31,6 @@ export interface SimulationResult {
   winRate: number
 }
 
-export interface ThreeCardFlushStats {
-  highCards: string
-  totalHands: number
-  wins: number
-  losses: number
-  winRate: number
-}
-
 export interface HandDistributionStats {
   totalHands: number
   aboveMinimum: number
@@ -232,7 +224,6 @@ export function calculateSuperFlushRushPayout(straightFlushCards: number, payout
 
 export interface SimulationSummary {
   results: SimulationResult[]
-  threeCardFlushStats: ThreeCardFlushStats[]
   handDistribution: HandDistributionStats
 }
 
@@ -250,7 +241,6 @@ export async function simulateHands(
     'Flush Rush Bonus': { totalBet: 0, totalWon: 0, handsWon: 0, handsLost: 0 },
     'Super Flush Rush Bonus': { totalBet: 0, totalWon: 0, handsWon: 0, handsLost: 0 }
   }
-  const threeCardStats: { [key: string]: { wins: number; losses: number; total: number } } = {}
   let handsAboveMinimum = 0
   let handsBelowMinimum = 0
   const deck = createDeck()
@@ -268,17 +258,6 @@ export async function simulateHands(
       handsBelowMinimum++
     else
       handsAboveMinimum++
-    if (playerBestFlush.length === 3) {
-      // Cards are already sorted by suit then rank (highest to lowest)
-      const highestCard = playerBestFlush[0]
-      const secondHighestCard = playerBestFlush[1]
-      const highestValue = highestCard.rank
-      if (highestValue >= minThreeCardFlushRank) {
-        const twoHighestKey = `${getRankDisplay(highestCard.rank)}-${getRankDisplay(secondHighestCard.rank)}`
-        if (!threeCardStats[twoHighestKey]) threeCardStats[twoHighestKey] = { wins: 0, losses: 0, total: 0 }
-        threeCardStats[twoHighestKey].total++
-      }
-    }
     const dealerQualified = dealerQualifies(dealerBestFlush)
     // Must decide to fold or play before knowing if dealer qualifies
     if (shouldFold) {
@@ -293,16 +272,6 @@ export async function simulateHands(
       if (!dealerQualified) {
         betTotals['Base Game (Ante + Play)'].totalWon += totalWager + anteAmount
         betTotals['Base Game (Ante + Play)'].handsWon++
-        if (playerBestFlush.length === 3) {
-          // Cards are already sorted by suit then rank (highest to lowest)
-          const highestCard = playerBestFlush[0]
-          const secondHighestCard = playerBestFlush[1]
-          const highestValue = highestCard.rank
-          if (highestValue >= minThreeCardFlushRank) {
-            const twoHighestKey = `${getRankDisplay(highestCard.rank)}-${getRankDisplay(secondHighestCard.rank)}`
-            if (threeCardStats[twoHighestKey]) threeCardStats[twoHighestKey].wins++
-          }
-        }
       // If dealer qualifies, compare flushes
       } else {
         const comparison = compareFlushes(playerBestFlush, dealerBestFlush)
@@ -310,29 +279,9 @@ export async function simulateHands(
         if (comparison > 0) {
           betTotals['Base Game (Ante + Play)'].totalWon += totalWager + totalWager
           betTotals['Base Game (Ante + Play)'].handsWon++
-          if (playerBestFlush.length === 3) {
-            // Cards are already sorted by suit then rank (highest to lowest)
-            const highestCard = playerBestFlush[0]
-            const secondHighestCard = playerBestFlush[1]
-            const highestValue = highestCard.rank
-            if (highestValue >= minThreeCardFlushRank) {
-              const twoHighestKey = `${getRankDisplay(highestCard.rank)}-${getRankDisplay(secondHighestCard.rank)}`
-              if (threeCardStats[twoHighestKey]) threeCardStats[twoHighestKey].wins++
-            }
-          }
         // If the dealer wins, the player loses their total wager
         } else if (comparison < 0) {
           betTotals['Base Game (Ante + Play)'].handsLost++
-          if (playerBestFlush.length === 3) {
-            // Cards are already sorted by suit then rank (highest to lowest)
-            const highestCard = playerBestFlush[0]
-            const secondHighestCard = playerBestFlush[1]
-            const highestValue = highestCard.rank
-            if (highestValue >= minThreeCardFlushRank) {
-              const twoHighestKey = `${getRankDisplay(highestCard.rank)}-${getRankDisplay(secondHighestCard.rank)}`
-              if (threeCardStats[twoHighestKey]) threeCardStats[twoHighestKey].losses++
-            }
-          }
         } else {
           // Tie is a push - player gets back their total wager
           betTotals['Base Game (Ante + Play)'].totalWon += totalWager
@@ -380,28 +329,6 @@ export async function simulateHands(
       winRate
     }
   })
-  const threeCardFlushResults: ThreeCardFlushStats[] = Object.keys(threeCardStats)
-    .sort((a, b) => {
-      const [aFirst, aSecond] = a.split('-')
-      const [bFirst, bSecond] = b.split('-')
-      // Convert display strings back to numeric values for sorting
-      const aFirstValue = aFirst === 'A' ? 14 : aFirst === 'K' ? 13 : aFirst === 'Q' ? 12 : aFirst === 'J' ? 11 : parseInt(aFirst)
-      const bFirstValue = bFirst === 'A' ? 14 : bFirst === 'K' ? 13 : bFirst === 'Q' ? 12 : bFirst === 'J' ? 11 : parseInt(bFirst)
-      if (aFirstValue !== bFirstValue) return bFirstValue - aFirstValue
-      const aSecondValue = aSecond === 'A' ? 14 : aSecond === 'K' ? 13 : aSecond === 'Q' ? 12 : aSecond === 'J' ? 11 : parseInt(aSecond)
-      const bSecondValue = bSecond === 'A' ? 14 : bSecond === 'K' ? 13 : bSecond === 'Q' ? 12 : bSecond === 'J' ? 11 : parseInt(bSecond)
-      return bSecondValue - aSecondValue
-    })
-    .map(highCards => {
-      const stats = threeCardStats[highCards]
-      return {
-        highCards,
-        totalHands: stats.total,
-        wins: stats.wins,
-        losses: stats.losses,
-        winRate: stats.total > 0 ? (stats.wins / (stats.wins + stats.losses)) * 100 : 0
-      }
-    })
   const handDistributionStats: HandDistributionStats = {
     totalHands: numHands,
     aboveMinimum: handsAboveMinimum,
@@ -411,7 +338,6 @@ export async function simulateHands(
   }
   return {
     results: simulationResults,
-    threeCardFlushStats: threeCardFlushResults,
     handDistribution: handDistributionStats
   }
 }

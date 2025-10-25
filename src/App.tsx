@@ -2,7 +2,6 @@ import { useState } from 'react'
 import {
   PayoutConfig,
   SimulationResult,
-  ThreeCardFlushStats,
   HandDistributionStats,
   simulateHands
 } from './lib/simulation'
@@ -26,7 +25,6 @@ function App() {
   const [simulationProgress, setSimulationProgress] = useState(0)
   const [results, setResults] = useState<SimulationResult[]>([])
   const [showConfig, setShowConfig] = useState(false)
-  const [threeCardFlushStats, setThreeCardFlushStats] = useState<ThreeCardFlushStats[]>([])
   const [handDistribution, setHandDistribution] = useState<HandDistributionStats | null>(null)
   const [numHands, setNumHands] = useState(1000000)
   const [minThreeCardFlushRank, setMinThreeCardFlushRank] = useState(9) // Minimum high card value for 3-card flush
@@ -87,7 +85,6 @@ Bonus Bets (optional):
       (progress) => setSimulationProgress(progress)
     )
     setResults(summary.results)
-    setThreeCardFlushStats(summary.threeCardFlushStats)
     setHandDistribution(summary.handDistribution)
     setSimulationProgress(100)
     setTimeout(() => {
@@ -429,48 +426,6 @@ Bonus Bets (optional):
                   <span>Fold ({handDistribution.belowMinimumPercentage.toFixed(1)}%)</span>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {threeCardFlushStats.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>3-Card Flush Win Rate by Two Highest Cards</CardTitle>
-              <CardDescription>Performance analysis for 3-card flush hands when playing (high card {getMinFlushDisplayText()}+)</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Two Highest Cards</TableHead>
-                    <TableHead className="text-right">Total Hands</TableHead>
-                    <TableHead className="text-right">Wins</TableHead>
-                    <TableHead className="text-right">Losses</TableHead>
-                    <TableHead className="text-right">Win Rate</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {threeCardFlushStats.filter(stat => stat.totalHands > 0).map((stat) => (
-                    <TableRow key={stat.highCards}>
-                      <TableCell className="font-medium">{stat.highCards}</TableCell>
-                      <TableCell className="text-right">{stat.totalHands}</TableCell>
-                      <TableCell className="text-right">{stat.wins}</TableCell>
-                      <TableCell className="text-right">{stat.losses}</TableCell>
-                      <TableCell className="text-right">
-                        <Badge variant="outline">
-                          {stat.winRate.toFixed(1)}%
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              {threeCardFlushStats.every(stat => stat.totalHands === 0) && (
-                <div className="text-center text-muted-foreground py-4">
-                  No 3-card flush hands with high cards {getMinFlushDisplayText()}+ were dealt in this simulation.
-                </div>
-              )}
             </CardContent>
           </Card>
         )}
