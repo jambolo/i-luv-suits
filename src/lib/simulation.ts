@@ -54,9 +54,48 @@ export function createDeck(): Card[] {
 
 // Shuffles a deck of cards using Fisher-Yates algorithm
 export function shuffleDeck(deck: Card[]): Card[] {
+  return shuffleDeckWithRng(deck)
+}
+
+// Type of a random number generator function that returns a float in [0,1)
+export type RNG = () => number
+
+// Create a seeded RNG (mulberry32) from a 32-bit integer seed
+export function mulberry32(seed: number): RNG {
+  let t = seed >>> 0
+  return function() {
+    t += 0x6D2B79F5
+    let r = Math.imul(t ^ (t >>> 15), 1 | t)
+    r ^= r + Math.imul(r ^ (r >>> 7), r | 61)
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+// Simple string -> 32-bit integer hash (FNV-1a)
+export function stringToSeed(str: string): number {
+  let h = 2166136261 >>> 0
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i)
+    h = Math.imul(h, 16777619) >>> 0
+  }
+  return h >>> 0
+}
+
+// Shuffle with an injected RNG for determinism or to use crypto
+export function shuffleDeckWithRng(deck: Card[], rng?: RNG): Card[] {
+  const random = rng ?? (
+    (typeof crypto !== 'undefined' && 'getRandomValues' in (crypto as any))
+      ? () => {
+          const arr = new Uint32Array(1)
+          ;(crypto as any).getRandomValues(arr)
+          return arr[0] / 4294967296
+        }
+      : Math.random
+  )
+
   const shuffled = [...deck]
   for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
+    const j = Math.floor(random() * (i + 1))
     ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
   }
   return shuffled
@@ -228,7 +267,8 @@ export async function simulateHands(
   numHands: number,
   payoutConfig: PayoutConfig,
   minThreeCardFlushRank: number,
-  setProgress?: (progress: number) => void
+  setProgress?: (progress: number) => void,
+  randomSeed?: number | string
 ): Promise<SimulationSummary> {
   const anteAmount = 1
   const flushRushBet = 1
@@ -240,9 +280,24 @@ export async function simulateHands(
   }
   let handsAboveMinimum = 0
   let handsBelowMinimum = 0
+  // Create RNG: prefer seeded when provided, otherwise prefer crypto.getRandomValues, else Math.random
+  let rng: RNG
+  if (typeof randomSeed !== 'undefined') {
+    const seed = typeof randomSeed === 'number' ? (randomSeed >>> 0) : stringToSeed(String(randomSeed))
+    rng = mulberry32(seed)
+  } else if (typeof crypto !== 'undefined' && 'getRandomValues' in (crypto as any)) {
+    rng = () => {
+      const arr = new Uint32Array(1)
+      ;(crypto as any).getRandomValues(arr)
+      return arr[0] / 4294967296
+    }
+  } else {
+    rng = Math.random
+  }
+
   const deck = createDeck()
   for (let hand = 0; hand < numHands; hand++) {
-    const shuffledDeck = shuffleDeck(deck)
+    const shuffledDeck = shuffleDeckWithRng(deck, rng)
     const playerHand = sortHandBySuitThenRank(shuffledDeck.slice(0, 7))
     const dealerHand = sortHandBySuitThenRank(shuffledDeck.slice(7, 14))
     const playerFlush = findBestFlush(playerHand)
