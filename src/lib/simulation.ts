@@ -79,7 +79,7 @@ export function getSuitOrder(suit: Suit): number {
     case '♥': return 1
     case '♦': return 2
     case '♣': return 3
-    default: return 4
+    default: throw new Error(`Invalid suit: ${suit}`)
   }
 }
 
@@ -194,13 +194,10 @@ export function compareFlushes(firstFlush: Card[], secondFlush: Card[]): number 
 }
 
 // Determines the play wager based on the player's best flush
-// Returns 0 if the player should fold
-// Note: The wager amount is predetermined for simulation purposes. It is not necessarily the optimal strategy.
-export function getPlayWager(flushCards: number, highCardValue: number, anteAmount: number, minThreeCardFlushRank: number): number {
+export function getMaxPlayWager(flushCards: number, anteAmount: number): number {
   if (flushCards >= 6) return anteAmount * 3
   if (flushCards >= 5) return anteAmount * 2
-  if (flushCards >= 3 && (minThreeCardFlushRank === 0 || highCardValue >= minThreeCardFlushRank)) return anteAmount * 1
-  return 0
+  return anteAmount * 1
 }
 
 // Returns the Flush Rush payout multiplier based on the number of flush cards
@@ -246,19 +243,19 @@ export async function simulateHands(
   const deck = createDeck()
   for (let hand = 0; hand < numHands; hand++) {
     const shuffledDeck = shuffleDeck(deck)
-    const playerCards = sortHandBySuitThenRank(shuffledDeck.slice(0, 7))
-    const dealerCards = sortHandBySuitThenRank(shuffledDeck.slice(7, 14))
-    const playerBestFlush = findBestFlush(playerCards)
-    const dealerBestFlush = findBestFlush(dealerCards)
-    const playerStraightFlush = findLongestStraightFlush(playerCards)
-    const highCardValue = playerBestFlush.length > 0 ? playerBestFlush[0].rank : 0
-    const playWager = getPlayWager(playerBestFlush.length, highCardValue, anteAmount, minThreeCardFlushRank)
-    const shouldFold = playWager === 0
+    const playerHand = sortHandBySuitThenRank(shuffledDeck.slice(0, 7))
+    const dealerHand = sortHandBySuitThenRank(shuffledDeck.slice(7, 14))
+    const playerFlush = findBestFlush(playerHand)
+    const dealerFlush = findBestFlush(dealerHand)
+    const playerStraightFlush = findLongestStraightFlush(playerHand)
+    const highCardValue = playerFlush.length > 0 ? playerFlush[0].rank : 0
+    const shouldFold = playerFlush.length < 3 || (playerFlush.length === 3 && minThreeCardFlushRank !== 0 && highCardValue < minThreeCardFlushRank)
+
     if (shouldFold)
       handsBelowMinimum++
     else
       handsAboveMinimum++
-    const dealerQualified = dealerQualifies(dealerBestFlush)
+    const dealerQualified = dealerQualifies(dealerFlush)
     // Must decide to fold or play before knowing if dealer qualifies
     if (shouldFold) {
       // Folding means losing the ante bet
@@ -266,6 +263,7 @@ export async function simulateHands(
       betTotals['Base Game (Ante + Play)'].handsLost++
     } else {
       // Playing means risking both ante and play wagers
+      const playWager = getMaxPlayWager(playerFlush.length, anteAmount)
       const totalWager = anteAmount + playWager
       betTotals['Base Game (Ante + Play)'].totalBet += totalWager
       // If dealer does not qualify, player wins ante bet only
@@ -274,7 +272,7 @@ export async function simulateHands(
         betTotals['Base Game (Ante + Play)'].handsWon++
       // If dealer qualifies, compare flushes
       } else {
-        const comparison = compareFlushes(playerBestFlush, dealerBestFlush)
+        const comparison = compareFlushes(playerFlush, dealerFlush)
         // If the player wins, they get their total wager (ante + play)
         if (comparison > 0) {
           betTotals['Base Game (Ante + Play)'].totalWon += totalWager + totalWager
@@ -288,7 +286,7 @@ export async function simulateHands(
         }
       }
     }
-    const flushRushMultiplier = calculateFlushRushPayout(playerBestFlush.length, payoutConfig)
+    const flushRushMultiplier = calculateFlushRushPayout(playerFlush.length, payoutConfig)
     const flushRushPayout = flushRushMultiplier > 0 ? flushRushBet * flushRushMultiplier : 0
     betTotals['Flush Rush Bonus'].totalBet += flushRushBet
     if (flushRushPayout > 0) {

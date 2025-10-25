@@ -1,6 +1,6 @@
 # I Luv Suits Casino Game Simulator
 
-Simulate the casino game "I Luv Suits Poker" (1,000,000 hands by default) and report clear expected-return metrics for Ante/Play and optional bonus bets. This document combines product, design, and explicit implementation/validation details so an automated agent (GPT-5) or an engineer can implement, test, and validate the simulation.
+Simulate the casino game "I Luv Suits Poker" and report clear expected-return metrics for Ante/Play and optional bonus bets. This document combines product, design, and explicit implementation/validation details so an automated agent (GPT-5) or an engineer can implement, test, and validate the simulation.
 
 ## Project Classification & User Context
 - **Complexity Level**: Light Application (multiple features with moderate state management)
@@ -79,7 +79,7 @@ Simulate the casino game "I Luv Suits Poker" (1,000,000 hands by default) and re
 This approach transforms a simple card game simulation into a comprehensive analytical tool that provides real value for understanding the mathematics behind casino games. The focus on configurability and detailed analysis makes it useful for both educational and professional purposes.
 
 ## Core purpose & success criteria
-- Mission: Simulate the I Luv Suits Poker game to compute expected returns for base bets and bonus bets across a configurable number of hands (default 1,000,000).
+- Mission: Simulate the I Luv Suits Poker game to compute expected returns for base bets and bonus bets across a configurable number of hands.
 - Success indicators:
   - Correct implementation of 7-card dealing, flush and straight-flush detection, and dealer qualification rules.
   - Ability to configure Flush Rush and Super Flush Rush payout tables and immediately observe impact on expected returns.
@@ -94,7 +94,6 @@ This approach transforms a simple card game simulation into a comprehensive anal
 - Outputs:
   - summary: {handsSimulated, anteReturnPct, bonusReturnPct, superBonusReturnPct, dealerQualRate}
   - breakdowns: {winRatesByBet, perHandRecords?}
-  - threeCardFlushAnalysis: {byHighCard: {9,10,J,Q} -> {wins, trials, winPct}}
 - Error modes:
   - Invalid payout table shape → deterministic error with helpful message.
   - handsToSimulate <= 0 → validation error.
@@ -110,27 +109,26 @@ This approach transforms a simple card game simulation into a comprehensive anal
 2) Configuration
   - Must accept and apply configurable Flush Rush and Super Flush Rush payout tables.
   - Must accept and apply a configurable minimum playable player hand as always a 3-card flush, with a configurable high card 9 through Ace, with 9 being the default.
-  - The number of simulated hands is configurable. The default and minimum are 1,000,000.
+  - The number of simulated hands is configurable. The minimum is 1,000. The maximum is 100,000,000. The deafult is 1,000,000.
 
 3) Results display & statistics
   - Expected return for Ante/Play (base strategy) expressed as a percentage assuming $1 unit bets.
   - Expected return for Flush Rush and Super Flush Rush bonus bets.
   - Win/loss counts and rates for each bet type.
-  - 3-card flush analysis broken down by high-card (9, 10, J, Q, K, A): trials, wins, win percentage.
 
 ## Game Description
 
 I Luv Suits Poker is a poker variant in which a player and dealer play against each other with a seven card hand. The player's goal is to get a larger or better flush than the dealer.
 
 ### Rules:
-- A "flush" means 2 or more cards of the same suit.
+- A "flush" is a group of cards of the same suit; however, 1-card and 2-card flushes are not considered in practice.
 - Player makes an Ante wager and receives 7 cards
-- Player must choose either to make a Play wager or to fold and lose their Ante:
+- Player must choose either to make a Play wager, or to fold and lose their Ante:
   - More flush cards = higher maximum Play wager
     - 2, 3, or 4 flush cards = up to 1 x Ante
     - 5 flush cards = up to 2 x Ante
     - 6 or 7 flush cards = up to 3 x Ante
-- Dealer must have a 3-card flush with a 9 or better to qualify.
+- Dealer must have a 4+ card flush, or a 3-card flush with high-card 9 or higher, to qualify.
 - If dealer doesn't qualify: Ante pays even money, Play pushes
 - If player's hand beats dealer's qualifying hand, player wins
 - If dealer qualifies and player wins: Both Ante and Play pay even money
@@ -143,27 +141,27 @@ I Luv Suits Poker is a poker variant in which a player and dealer play against e
     - Flushes with the same number of cards and the same ranks are a tie.
 - Side Bets:
   - Flush Rush Bonus: Pays based on the number of player's flush cards
-  - Super Flush Rush Bonus: Pays based on the number of player's flush cards that make a straight
+  - Super Flush Rush Bonus: Pays based on the number of player's flush cards that make a straight, including a low-ace straight.
   - Side bets win/lose regardless of base game outcome
 
 ## Simulation details
 - Flush Rush Bonus and Super Flush Rush Bonus payouts are configurable. The defaults are as follows:
   - Flush Rush Bonus:
-      - 7 Cards: 100
-      - 6 Cards: 20
-      - 5 Cards: 10
-      - 4 Cards: 2
+      - 7 Cards: 100 to 1
+      - 6 Cards: 20 to 1
+      - 5 Cards: 10 to 1
+      - 4 Cards: 2 to 1
   - Super Flush Rush Bonus:
-      7 Cards: 500
-      6 Cards: 200
-      5 Cards: 100
-      4 Cards: 50
-      3 Cards: 9
+      7 Cards: 500 to 1
+      6 Cards: 200 to 1
+      5 Cards: 100 to 1
+      4 Cards: 50 to 1
+      3 Cards: 9 to 1
 - The player plays as follows:
   - The player always bets Ante, Flush Rush Bonus, and Super Flush Rush Bonus wagers of 1 each.
   - The player always folds if their hand is less than the minimum playable hand.
   - The minimum playable hand is a flush with 3 cards, with the minimum high card being configurable. Flushes with with more than 3 cards are always played.
-  - The player always bets the maximum Play wager.
+  - The player always bets the maximum Play wager if played.
 
 ## Design & UX notes (concise)
 - Tone: professional, data-first (casino-grade). Use clear tables and cards to show summary and breakdowns.
@@ -196,7 +194,6 @@ I Luv Suits Poker is a poker variant in which a player and dealer play against e
 ## Short checklist for reviewers
 - [ ] Hand evaluation functions (flush/straight flush) implemented and unit-tested
 - [ ] Simulation harness accepts payout tables and handsToSimulate
-- [ ] Results include three-card flush analysis by high-card
 - [ ] UI/worker integration to keep UI responsive
 
 ---

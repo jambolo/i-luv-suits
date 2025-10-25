@@ -150,13 +150,13 @@ Bonus Bets (optional):
                   id="num-hands"
                   type="number"
                   min="1000"
-                  max="10000000"
+                  max="100000000"
                   step="1000"
                   value={numHands}
                   onChange={(e) => setNumHands(parseInt(e.target.value) || 1000000)}
                   disabled={isSimulating}
                 />
-                <p className="text-xs text-muted-foreground">1,000 - 10,000,000 hands</p>
+                <p className="text-xs text-muted-foreground">1,000 - 100,000,000 hands</p>
               </div>
               
               <div className="space-y-2">
