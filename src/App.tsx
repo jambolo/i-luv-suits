@@ -1,4 +1,11 @@
 import { useState } from 'react'
+import {
+  PayoutConfig,
+  SimulationResult,
+  ThreeCardFlushStats,
+  HandDistributionStats,
+  simulateHands
+} from './lib/simulation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -13,48 +20,6 @@ import { Play, ChartBar, TrendDown, TrendUp, Gear } from '@phosphor-icons/react'
 const suits = ['♠', '♥', '♦', '♣']
 const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K']
 const highCardNames = ['Jack', 'Queen', 'King', 'Ace']
-
-interface PayoutConfig {
-  flushRush: {
-    sevenCard: number
-    sixCard: number
-    fiveCard: number
-    fourCard: number
-  }
-  superFlushRush: {
-    sevenCardStraight: number
-    sixCardStraight: number
-    fiveCardStraight: number
-    fourCardStraight: number
-    threeCardStraight: number
-  }
-}
-
-interface SimulationResult {
-  betType: string
-  totalBet: number
-  totalWon: number
-  expectedReturn: number
-  handsWon: number
-  handsLost: number
-  winRate: number
-}
-
-interface ThreeCardFlushStats {
-  highCards: string
-  totalHands: number
-  wins: number
-  losses: number
-  winRate: number
-}
-
-interface HandDistributionStats {
-  totalHands: number
-  aboveMinimum: number
-  belowMinimum: number
-  aboveMinimumPercentage: number
-  belowMinimumPercentage: number
-}
 
 function App() {
   const [isSimulating, setIsSimulating] = useState(false)
@@ -89,17 +54,20 @@ function App() {
     return minThreeCardFlushRank.toString()
   }
 
-  const gameRules = `I Luv Suits Poker is a seven (7) card poker game that lets players play against the dealer using seven (7) cards per player. The goal is to get a higher ranking flush with more flush cards than the dealer. There is a qualifier of a three (3) card nine-high flush for the dealer.
+  const gameRules = `I Luv Suits Poker is a seven (7) card poker game in which players play against the dealer with a seven card hand. The goal is to get a higher ranking flush with more flush cards than the dealer.
 
 Game Rules:
 • Player makes an Ante wager and receives 7 cards
-• Player can make a Play wager of 1-3x their Ante depending on how many flush cards they have:
-  - More flush cards = higher play wager (1x to 3x Ante)
+• Player must choose either to make a Play wager or to fold and lose their Ante:
+  - More flush cards = higher maximum play wager
+    - 2 - 4 flush cards = up to 1 x Ante
+    - 5 flush cards = up to 2 x Ante
+    - 6 - 7 flush cards = up to 3 x Ante
   - Player may fold their hand instead
 • Current Strategy: Only play 3-card flush if high card is ${getMinFlushDisplayText()} or higher
 • Dealer needs 3-card nine-high flush minimum to qualify
-• If player's hand beats dealer's qualifying hand, player wins
 • If dealer doesn't qualify: Ante pays even money, Play pushes
+• If player's hand beats dealer's qualifying hand, player wins
 • If dealer qualifies and player wins: Both Ante and Play pay even money
 • If dealer qualifies and dealer wins: Both Ante and Play lose
 
@@ -108,406 +76,20 @@ Bonus Bets (optional):
 • Super Flush Rush Bonus: Pays based on player's straight flush cards (3+ to win)
 • Bonus bets win/lose regardless of base game outcome`
 
-  const createDeck = (): { rank: string; suit: string }[] => {
-    const deck: { rank: string; suit: string }[] = []
-    for (const suit of suits) {
-      for (const rank of ranks) {
-        deck.push({ rank, suit })
-      }
-    }
-    return deck
-  }
-
-  const shuffleDeck = (deck: { rank: string; suit: string }[]) => {
-    const shuffled = [...deck]
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
-    }
-    return shuffled
-  }
-
-  const getRankValue = (rank: string): number => {
-    if (rank === 'A') return 14
-    if (rank === 'K') return 13
-    if (rank === 'Q') return 12
-    if (rank === 'J') return 11
-    return parseInt(rank)
-  }
-
-  const findLongestFlush = (cards: { rank: string; suit: string }[]) => {
-    const suitGroups: { [suit: string]: { rank: string; suit: string }[] } = {}
-    
-    cards.forEach(card => {
-      if (!suitGroups[card.suit]) {
-        suitGroups[card.suit] = []
-      }
-      suitGroups[card.suit].push(card)
-    })
-
-    let longestFlush: { rank: string; suit: string }[] = []
-    for (const suit in suitGroups) {
-      if (suitGroups[suit].length > longestFlush.length) {
-        longestFlush = suitGroups[suit].sort((a, b) => getRankValue(b.rank) - getRankValue(a.rank))
-      }
-    }
-
-    return longestFlush
-  }
-
-  const findLongestStraightFlush = (cards: { rank: string; suit: string }[]) => {
-    const suitGroups: { [suit: string]: { rank: string; suit: string }[] } = {}
-    
-    cards.forEach(card => {
-      if (!suitGroups[card.suit]) {
-        suitGroups[card.suit] = []
-      }
-      suitGroups[card.suit].push(card)
-    })
-
-    let longestStraightFlush: { rank: string; suit: string }[] = []
-
-    for (const suit in suitGroups) {
-      const suitCards = suitGroups[suit].sort((a, b) => getRankValue(a.rank) - getRankValue(b.rank))
-      
-      if (suitCards.length < 3) continue
-
-      // Find longest straight in this suit
-      for (let i = 0; i < suitCards.length; i++) {
-        const straight = [suitCards[i]]
-        let currentValue = getRankValue(suitCards[i].rank)
-        
-        for (let j = i + 1; j < suitCards.length; j++) {
-          const nextValue = getRankValue(suitCards[j].rank)
-          if (nextValue === currentValue + 1) {
-            straight.push(suitCards[j])
-            currentValue = nextValue
-          } else if (nextValue > currentValue + 1) {
-            break
-          }
-        }
-
-        if (straight.length > longestStraightFlush.length) {
-          longestStraightFlush = straight
-        }
-      }
-
-      // Check for A-2-3-4-5 straight (wheel)
-      const hasAce = suitCards.some(c => c.rank === 'A')
-      const hasTwo = suitCards.some(c => c.rank === '2')
-      const hasThree = suitCards.some(c => c.rank === '3')
-      const hasFour = suitCards.some(c => c.rank === '4')
-      const hasFive = suitCards.some(c => c.rank === '5')
-      
-      if (hasAce && hasTwo && hasThree && hasFour && hasFive) {
-        const wheelStraight = suitCards.filter(c => ['A', '2', '3', '4', '5'].includes(c.rank))
-        if (wheelStraight.length >= longestStraightFlush.length) {
-          longestStraightFlush = wheelStraight
-        }
-      }
-    }
-
-    return longestStraightFlush
-  }
-
-  const dealerQualifies = (dealerFlush: { rank: string; suit: string }[]): boolean => {
-    if (dealerFlush.length < 3) return false
-    
-    // Check if it's at least nine-high (9 or higher as the highest card)
-    const highestCard = Math.max(...dealerFlush.map(card => getRankValue(card.rank)))
-    return highestCard >= 9
-  }
-
-  const compareFlushes = (playerFlush: { rank: string; suit: string }[], dealerFlush: { rank: string; suit: string }[]): 'win' | 'lose' | 'push' => {
-    // First compare by number of cards
-    if (playerFlush.length > dealerFlush.length) return 'win'
-    if (playerFlush.length < dealerFlush.length) return 'lose'
-    
-    // Same number of cards, compare high cards
-    const playerSorted = [...playerFlush].sort((a, b) => getRankValue(b.rank) - getRankValue(a.rank))
-    const dealerSorted = [...dealerFlush].sort((a, b) => getRankValue(b.rank) - getRankValue(a.rank))
-    
-    for (let i = 0; i < Math.min(playerSorted.length, dealerSorted.length); i++) {
-      const playerValue = getRankValue(playerSorted[i].rank)
-      const dealerValue = getRankValue(dealerSorted[i].rank)
-      
-      if (playerValue > dealerValue) return 'win'
-      if (playerValue < dealerValue) return 'lose'
-    }
-    
-    return 'push'
-  }
-
-  const getOptimalPlayWager = (flushCards: number, highCardValue: number, anteAmount: number): number => {
-    // Strategy: Play wager varies based on flush strength
-    if (flushCards >= 6) return anteAmount * 3  // Strong flush - max bet
-    if (flushCards >= 4) return anteAmount * 2  // Good flush - moderate bet
-    if (flushCards === 3) {
-      // Only play 3-card flush if high card meets minimum threshold
-      if (highCardValue >= minThreeCardFlushRank) return anteAmount * 1
-      return 0 // Fold if high card is less than minimum
-    }
-    return 0 // Fold with 0-2 flush cards
-  }
-
-  const calculateFlushRushPayout = (flushCards: number): number => {
-    if (flushCards >= 7) return payoutConfig.flushRush.sevenCard
-    if (flushCards >= 6) return payoutConfig.flushRush.sixCard
-    if (flushCards >= 5) return payoutConfig.flushRush.fiveCard
-    if (flushCards >= 4) return payoutConfig.flushRush.fourCard
-    return 0
-  }
-
-  const calculateSuperFlushRushPayout = (straightFlushCards: number): number => {
-    if (straightFlushCards >= 7) return payoutConfig.superFlushRush.sevenCardStraight
-    if (straightFlushCards >= 6) return payoutConfig.superFlushRush.sixCardStraight
-    if (straightFlushCards >= 5) return payoutConfig.superFlushRush.fiveCardStraight
-    if (straightFlushCards >= 4) return payoutConfig.superFlushRush.fourCardStraight
-    if (straightFlushCards >= 3) return payoutConfig.superFlushRush.threeCardStraight
-    return 0
-  }
-
-  const simulateHands = async () => {
+  // ...existing code...
+  const simulateHandsUI = async () => {
     setIsSimulating(true)
     setSimulationProgress(0)
-    
-    const anteAmount = 1
-    const flushRushBet = 1
-    const superFlushRushBet = 1
-    
-    const betTotals: { [key: string]: { totalBet: number; totalWon: number; handsWon: number; handsLost: number } } = {
-      'Base Game (Ante + Play)': { totalBet: 0, totalWon: 0, handsWon: 0, handsLost: 0 },
-      'Flush Rush Bonus': { totalBet: 0, totalWon: 0, handsWon: 0, handsLost: 0 },
-      'Super Flush Rush Bonus': { totalBet: 0, totalWon: 0, handsWon: 0, handsLost: 0 }
-    }
-    
-    // Track 3-card flush stats by two highest cards (only for cards meeting minimum threshold)
-    const threeCardStats: { [key: string]: { wins: number; losses: number; total: number } } = {}
-    
-    // Track hand distribution relative to minimum threshold
-    let handsAboveMinimum = 0
-    let handsBelowMinimum = 0
-
-    for (let hand = 0; hand < numHands; hand++) {
-      const deck = shuffleDeck(createDeck())
-      
-      // Deal 7 cards to player and 7 to dealer
-      const playerCards = deck.slice(0, 7)
-      const dealerCards = deck.slice(7, 14)
-      
-      // Find best flushes
-      const playerBestFlush = findLongestFlush(playerCards)
-      const dealerBestFlush = findLongestFlush(dealerCards)
-      
-      // Find straight flushes for bonus bets
-      const playerStraightFlush = findLongestStraightFlush(playerCards)
-      
-      // Get high card value for 3-card flush decisions
-      const highCardValue = playerBestFlush.length > 0 ? 
-        Math.max(...playerBestFlush.map(card => getRankValue(card.rank))) : 0
-      
-      // Determine play wager based on player's flush cards and high card
-      const playWager = getOptimalPlayWager(playerBestFlush.length, highCardValue, anteAmount)
-      const shouldFold = playWager === 0
-      
-      // Track hand distribution relative to minimum threshold
-      // A hand is "above minimum" if it either:
-      // 1. Has 4+ flush cards (automatic play), OR
-      // 2. Has exactly 3 flush cards with high card >= minimum threshold
-      const meetsMinimumThreshold = playerBestFlush.length >= 4 || 
-        (playerBestFlush.length === 3 && highCardValue >= minThreeCardFlushRank)
-      
-      if (meetsMinimumThreshold) {
-        handsAboveMinimum++
-      } else {
-        handsBelowMinimum++
-      }
-      
-      // Track 3-card flush statistics for two highest cards that meet minimum threshold
-      if (playerBestFlush.length === 3) {
-        // Get two highest cards
-        const sortedFlush = [...playerBestFlush].sort((a, b) => getRankValue(b.rank) - getRankValue(a.rank))
-        const highestCard = sortedFlush[0]
-        const secondHighestCard = sortedFlush[1]
-        const highestValue = getRankValue(highestCard.rank)
-        
-        if (highestValue >= minThreeCardFlushRank) {
-          const twoHighestKey = `${highestCard.rank}-${secondHighestCard.rank}`
-          if (!threeCardStats[twoHighestKey]) {
-            threeCardStats[twoHighestKey] = { wins: 0, losses: 0, total: 0 }
-          }
-          threeCardStats[twoHighestKey].total++
-        }
-      }
-      
-      // Evaluate dealer qualification
-      const dealerQualified = dealerQualifies(dealerBestFlush)
-      
-      if (shouldFold) {
-        // Player folds - loses ante only
-        betTotals['Base Game (Ante + Play)'].totalBet += anteAmount
-        betTotals['Base Game (Ante + Play)'].handsLost++
-      } else {
-        // Player plays
-        const totalWager = anteAmount + playWager
-        betTotals['Base Game (Ante + Play)'].totalBet += totalWager
-        
-        if (!dealerQualified) {
-          // Dealer doesn't qualify - ante pays even money, play pushes
-          betTotals['Base Game (Ante + Play)'].totalWon += anteAmount
-          betTotals['Base Game (Ante + Play)'].handsWon++
-          
-          // Track 3-card flush win for stats
-          if (playerBestFlush.length === 3) {
-            const sortedFlush = [...playerBestFlush].sort((a, b) => getRankValue(b.rank) - getRankValue(a.rank))
-            const highestCard = sortedFlush[0]
-            const secondHighestCard = sortedFlush[1]
-            const highestValue = getRankValue(highestCard.rank)
-            
-            if (highestValue >= minThreeCardFlushRank) {
-              const twoHighestKey = `${highestCard.rank}-${secondHighestCard.rank}`
-              if (threeCardStats[twoHighestKey]) {
-                threeCardStats[twoHighestKey].wins++
-              }
-            }
-          }
-        } else {
-          // Dealer qualifies - compare hands
-          const comparison = compareFlushes(playerBestFlush, dealerBestFlush)
-          
-          if (comparison === 'win') {
-            betTotals['Base Game (Ante + Play)'].totalWon += totalWager * 2 // Both ante and play pay even money
-            betTotals['Base Game (Ante + Play)'].handsWon++
-            
-            // Track 3-card flush win for stats
-            if (playerBestFlush.length === 3) {
-              const sortedFlush = [...playerBestFlush].sort((a, b) => getRankValue(b.rank) - getRankValue(a.rank))
-              const highestCard = sortedFlush[0]
-              const secondHighestCard = sortedFlush[1]
-              const highestValue = getRankValue(highestCard.rank)
-              
-              if (highestValue >= minThreeCardFlushRank) {
-                const twoHighestKey = `${highestCard.rank}-${secondHighestCard.rank}`
-                if (threeCardStats[twoHighestKey]) {
-                  threeCardStats[twoHighestKey].wins++
-                }
-              }
-            }
-          } else if (comparison === 'push') {
-            betTotals['Base Game (Ante + Play)'].totalWon += totalWager // Get wager back
-          } else {
-            betTotals['Base Game (Ante + Play)'].handsLost++
-            
-            // Track 3-card flush loss for stats
-            if (playerBestFlush.length === 3) {
-              const sortedFlush = [...playerBestFlush].sort((a, b) => getRankValue(b.rank) - getRankValue(a.rank))
-              const highestCard = sortedFlush[0]
-              const secondHighestCard = sortedFlush[1]
-              const highestValue = getRankValue(highestCard.rank)
-              
-              if (highestValue >= minThreeCardFlushRank) {
-                const twoHighestKey = `${highestCard.rank}-${secondHighestCard.rank}`
-                if (threeCardStats[twoHighestKey]) {
-                  threeCardStats[twoHighestKey].losses++
-                }
-              }
-            }
-          }
-        }
-      }
-      
-      // Evaluate bonus bets
-      const flushRushMultiplier = calculateFlushRushPayout(playerBestFlush.length)
-      const flushRushPayout = flushRushMultiplier > 0 ? flushRushBet * flushRushMultiplier : 0
-      
-      betTotals['Flush Rush Bonus'].totalBet += flushRushBet
-      if (flushRushPayout > 0) {
-        betTotals['Flush Rush Bonus'].totalWon += flushRushPayout
-        betTotals['Flush Rush Bonus'].handsWon++
-      } else {
-        betTotals['Flush Rush Bonus'].handsLost++
-      }
-      
-      const superFlushRushMultiplier = calculateSuperFlushRushPayout(playerStraightFlush.length)
-      const superFlushRushPayout = superFlushRushMultiplier > 0 ? superFlushRushBet * superFlushRushMultiplier : 0
-      
-      betTotals['Super Flush Rush Bonus'].totalBet += superFlushRushBet
-      if (superFlushRushPayout > 0) {
-        betTotals['Super Flush Rush Bonus'].totalWon += superFlushRushPayout
-        betTotals['Super Flush Rush Bonus'].handsWon++
-      } else {
-        betTotals['Super Flush Rush Bonus'].handsLost++
-      }
-      
-      // Update progress and UI less frequently for performance
-      const updateFrequency = Math.max(1, Math.floor(numHands / 100))
-      if (hand % updateFrequency === 0) {
-        const progress = (hand / numHands) * 100
-        setSimulationProgress(progress)
-        await new Promise(resolve => setTimeout(resolve, 1))
-      }
-    }
-
-    const simulationResults: SimulationResult[] = Object.keys(betTotals).map(betType => {
-      const data = betTotals[betType]
-      const expectedReturn = ((data.totalWon - data.totalBet) / data.totalBet) * 100
-      const winRate = (data.handsWon / (data.handsWon + data.handsLost)) * 100
-      
-      return {
-        betType,
-        totalBet: data.totalBet,
-        totalWon: data.totalWon,
-        expectedReturn,
-        handsWon: data.handsWon,
-        handsLost: data.handsLost,
-        winRate
-      }
-    })
-
-    // Compile 3-card flush statistics
-    const threeCardFlushResults: ThreeCardFlushStats[] = Object.keys(threeCardStats)
-      .sort((a, b) => {
-        // Sort by first card value descending, then by second card value descending
-        const [aFirst, aSecond] = a.split('-')
-        const [bFirst, bSecond] = b.split('-')
-        const aFirstValue = getRankValue(aFirst)
-        const bFirstValue = getRankValue(bFirst)
-        
-        if (aFirstValue !== bFirstValue) {
-          return bFirstValue - aFirstValue
-        }
-        
-        const aSecondValue = getRankValue(aSecond)
-        const bSecondValue = getRankValue(bSecond)
-        return bSecondValue - aSecondValue
-      })
-      .map(highCards => {
-        const stats = threeCardStats[highCards]
-        return {
-          highCards,
-          totalHands: stats.total,
-          wins: stats.wins,
-          losses: stats.losses,
-          winRate: stats.total > 0 ? (stats.wins / (stats.wins + stats.losses)) * 100 : 0
-        }
-      })
-
-    // Compile hand distribution statistics
-    const handDistributionStats: HandDistributionStats = {
-      totalHands: numHands,
-      aboveMinimum: handsAboveMinimum,
-      belowMinimum: handsBelowMinimum,
-      aboveMinimumPercentage: (handsAboveMinimum / numHands) * 100,
-      belowMinimumPercentage: (handsBelowMinimum / numHands) * 100
-    }
-
-    // Update state with results
-    setResults(simulationResults)
-    setThreeCardFlushStats(threeCardFlushResults)
-    setHandDistribution(handDistributionStats)
+    const summary = await simulateHands(
+      numHands,
+      payoutConfig,
+      minThreeCardFlushRank,
+      (progress) => setSimulationProgress(progress)
+    )
+    setResults(summary.results)
+    setThreeCardFlushStats(summary.threeCardFlushStats)
+    setHandDistribution(summary.handDistribution)
     setSimulationProgress(100)
-    
-    // Small delay to show 100% completion before hiding progress
     setTimeout(() => {
       setIsSimulating(false)
       setSimulationProgress(0)
@@ -598,7 +180,7 @@ Bonus Bets (optional):
             </div>
             
             <Button 
-              onClick={simulateHands} 
+              onClick={simulateHandsUI} 
               disabled={isSimulating}
               className="w-full"
               size="lg"
