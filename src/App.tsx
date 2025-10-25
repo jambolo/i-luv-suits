@@ -68,17 +68,17 @@ function App() {
   
   const [payoutConfig, setPayoutConfig] = useState<PayoutConfig>({
     flushRush: {
-      sevenCard: 300,
-      sixCard: 100,
+      sevenCard: 100,
+      sixCard: 20,
       fiveCard: 10,
-      fourCard: 1
+      fourCard: 2
     },
     superFlushRush: {
-      sevenCardStraight: 8000,
-      sixCardStraight: 1000,
+      sevenCardStraight: 500,
+      sixCardStraight: 200,
       fiveCardStraight: 100,
-      fourCardStraight: 60,
-      threeCardStraight: 7
+      fourCardStraight: 50,
+      threeCardStraight: 9
     }
   })
 
