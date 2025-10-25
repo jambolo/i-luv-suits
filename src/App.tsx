@@ -27,7 +27,7 @@ function App() {
   const [showConfig, setShowConfig] = useState(false)
   const [handDistribution, setHandDistribution] = useState<HandDistributionStats | null>(null)
   const [numHands, setNumHands] = useState(1000000)
-  const [minThreeCardFlushRank, setMinThreeCardFlushRank] = useState(9) // Minimum high card value for 3-card flush
+  const [minThreeCardFlushRank, setMinThreeCardFlushRank] = useState(9) // Minimum high card value for 3-card flush (0 = none)
   
   const [payoutConfig, setPayoutConfig] = useState<PayoutConfig>({
     flushRush: {
@@ -46,6 +46,9 @@ function App() {
   })
 
   const getMinFlushDisplayText = () => {
+    if (minThreeCardFlushRank === 0) {
+      return 'None'
+    }
     if (minThreeCardFlushRank >= 11) {
       return highCardNames[minThreeCardFlushRank - 11]
     }
@@ -62,7 +65,7 @@ Game Rules:
     - 5 flush cards = up to 2 x Ante
     - 6 - 7 flush cards = up to 3 x Ante
   - Player may fold their hand instead
-• Current Strategy: Only play 3-card flush if high card is ${getMinFlushDisplayText()} or higher
+• Current Strategy: ${minThreeCardFlushRank === 0 ? 'Always play 3-card flush (no minimum)' : `Only play 3-card flush if high card is ${getMinFlushDisplayText()} or higher`}
 • Dealer needs 3-card nine-high flush minimum to qualify
 • If dealer doesn't qualify: Ante pays even money, Play pushes
 • If player's hand beats dealer's qualifying hand, player wins
@@ -165,6 +168,10 @@ Bonus Bets (optional):
                   disabled={isSimulating}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
+                  <option value={0}>None</option>
+                  <option value={5}>5</option>
+                  <option value={6}>6</option>
+                  <option value={7}>7</option>
                   <option value={8}>8</option>
                   <option value={9}>9 (Default)</option>
                   <option value={10}>10</option>
@@ -369,7 +376,12 @@ Bonus Bets (optional):
           <Card>
             <CardHeader>
               <CardTitle>Hand Distribution Analysis</CardTitle>
-              <CardDescription>Percentage of hands above and below the minimum 3-card flush threshold ({getMinFlushDisplayText()}+ high card)</CardDescription>
+              <CardDescription>
+                {minThreeCardFlushRank === 0 
+                  ? 'Percentage of hands with 3+ flush cards (no minimum required)'
+                  : `Percentage of hands above and below the minimum 3-card flush threshold (${getMinFlushDisplayText()}+ high card)`
+                }
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -382,7 +394,10 @@ Bonus Bets (optional):
                     {handDistribution.aboveMinimum.toLocaleString()} / {handDistribution.totalHands.toLocaleString()} hands
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    (4+ flush cards OR 3-card flush with {getMinFlushDisplayText()}+ high card)
+                    {minThreeCardFlushRank === 0 
+                      ? '(3+ flush cards)' 
+                      : `(4+ flush cards OR 3-card flush with ${getMinFlushDisplayText()}+ high card)`
+                    }
                   </div>
                 </div>
                 
@@ -395,7 +410,10 @@ Bonus Bets (optional):
                     {handDistribution.belowMinimum.toLocaleString()} / {handDistribution.totalHands.toLocaleString()} hands
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    (0-2 flush cards OR 3-card flush with &lt;{getMinFlushDisplayText()} high card)
+                    {minThreeCardFlushRank === 0 
+                      ? '(0-2 flush cards)' 
+                      : `(0-2 flush cards OR 3-card flush with <${getMinFlushDisplayText()} high card)`
+                    }
                   </div>
                 </div>
                 

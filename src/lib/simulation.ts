@@ -199,7 +199,7 @@ export function compareFlushes(firstFlush: Card[], secondFlush: Card[]): number 
 export function getPlayWager(flushCards: number, highCardValue: number, anteAmount: number, minThreeCardFlushRank: number): number {
   if (flushCards >= 6) return anteAmount * 3
   if (flushCards >= 5) return anteAmount * 2
-  if (flushCards >= 3 && highCardValue >= minThreeCardFlushRank) return anteAmount * 1
+  if (flushCards >= 3 && (minThreeCardFlushRank === 0 || highCardValue >= minThreeCardFlushRank)) return anteAmount * 1
   return 0
 }
 
