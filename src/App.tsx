@@ -122,7 +122,7 @@ Bonus Bets (optional):
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-bold text-foreground">I Luv Suits Poker Simulator</h1>
-          <p className="text-muted-foreground">Statistical analysis with configurable hand count and expected return calculations</p>
+          <p className="text-muted-foreground">Statistical analysis with configurable play and expected return calculations</p>
         </div>
 
         <Card>
