@@ -168,7 +168,8 @@ Bonus Bets (optional):
                   disabled={isSimulating}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <option value={9}>9 (Current Default)</option>
+                  <option value={8}>8</option>
+                  <option value={9}>9 (Default)</option>
                   <option value={10}>10</option>
                   <option value={11}>Jack</option>
                   <option value={12}>Queen</option>
