@@ -77,7 +77,6 @@ Game Rules:
     - 5 flush cards = up to 2 x Ante
     - 6 - 7 flush cards = up to 3 x Ante
   - Player may fold their hand instead
-• Current Strategy: ${minThreeCardFlushRank === 0 ? 'Always play 3-card flush (no minimum)' : `Only play 3-card flush if high card is ${getMinFlushDisplayText()} or higher`}
 • Dealer needs 3-card nine-high flush minimum to qualify
 • If dealer doesn't qualify: Ante pays even money, Play pushes
 • If player's hand beats dealer's qualifying hand, player wins
