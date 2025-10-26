@@ -39,6 +39,39 @@ export interface HandDistributionStats {
   belowMinimumPercentage: number
 }
 
+export class BetResults {
+  totalBet: number
+  totalWon: number
+  handsWon: number
+  handsLost: number
+
+  constructor() {
+    this.totalBet = 0
+    this.totalWon = 0
+    this.handsWon = 0
+    this.handsLost = 0
+  }
+
+  // Record a win
+  recordWin(bet: number, won: number) {
+    this.handsWon++
+    this.totalBet += bet
+    this.totalWon += bet + won // Include returned bet
+  }
+
+  // Record a loss
+  recordLoss(bet: number) {
+    this.handsLost++
+    this.totalBet += bet
+  }
+
+  // Record a push
+  recordPush(bet: number) {
+    this.totalBet += bet
+    this.totalWon += bet // Return bet
+  }
+}
+
 export type RNG = () => number
 
 // Utilities
@@ -111,57 +144,77 @@ export function findBestFlush(cards: Card[]): Card[] {
   }, [] as Card[])
 }
 
-export function findLongestStraightFlush(cards: Card[]): Card[] {
-  const suitGroups: { [suit: string]: Card[] } = {}
-  cards.forEach(card => {
-    if (!suitGroups[card.suit]) suitGroups[card.suit] = []
-    suitGroups[card.suit].push(card)
-  })
-  let longestStraightFlush: Card[] = []
+export function findLongestStraightFlush(cards: Card[]): number {
+  const suitGroups = divideHandIntoSuits(cards);
+  let longest = 0;
+
   for (const suit in suitGroups) {
-    const suitCards = suitGroups[suit].slice().sort((a,b)=>b.rank-a.rank)
-    if (suitCards.length < 3) continue
-    for (let i = 0; i < suitCards.length; i++) {
-      const straight = [suitCards[i]]
-      let currentValue = suitCards[i].rank
-      for (let j = i + 1; j < suitCards.length; j++) {
-        const nextValue = suitCards[j].rank
-        if (nextValue === currentValue - 1) {
-          straight.push(suitCards[j])
-          currentValue = nextValue
-        } else if (nextValue < currentValue - 1) {
-          break
-        }
+    const flush = suitGroups[suit];
+    if (flush.length < 1) continue;
+    longest = Math.max(longest, findLongestStraight(flush));
+    longest = Math.max(longest, findLowAceStraight(flush))
+  }
+  return longest
+}
+
+export function findLowAceStraight(flush: Card[]): number {
+  if (flush.length === 0) return 0
+  let longest = 0;
+  // If there is an Ace, check for 2, 3, ... at the end.
+  if (highCard(flush) === 14) {
+    let length = 1;
+    let i = flush.length - 1;
+    let prev = 1; // Start with low Ace
+    while (i > 0) {
+      const current = flush[i - 1].rank;
+      if (current === prev + 1) {
+        length++;
+      } else {
+        // Not consecutive, save this result and reset
+        longest = Math.max(longest, length);
+        length = 1;
       }
-      if (straight.length > longestStraightFlush.length) {
-        longestStraightFlush = straight
-      }
-    }
-    if (suitCards.length > 0 && suitCards[0].rank === 14) {
-      const aceCard = suitCards[0]
-      const aceLowStraight = [aceCard]
-      let expectedRank = 2
-      for (let i = suitCards.length - 1; i >= 1 && expectedRank <= 6; i--) {
-        if (suitCards[i].rank === expectedRank) {
-          aceLowStraight.push(suitCards[i])
-          expectedRank++
-        } else {
-          break
-        }
-      }
-      if (aceLowStraight.length >= 3 && aceLowStraight.length > longestStraightFlush.length) {
-        const sortedAceLow = [aceCard, ...aceLowStraight.slice(1).sort((a, b) => a.rank - b.rank)]
-        longestStraightFlush = sortedAceLow
-      }
+      prev = current;
+      i--;
     }
   }
-  return longestStraightFlush
+  return longest
+}
+
+export function findLongestStraight(flush: Card[]): number {
+  if (flush.length === 0) return 0
+  let longest = 0
+  let length = 1
+  let i = 1
+  let prev = flush[0].rank
+  while (i < flush.length) {
+    const current = flush[i].rank;
+    if (current === prev - 1) {
+      length++;
+    } else {
+      // Not consecutive, save this result and reset
+      longest = Math.max(longest, length);
+      length = 1;
+    }
+    prev = current;
+    i++;
+  }
+  return longest
+}
+
+export function divideHandIntoSuits(cards: Card[]): { [suit: string]: Card[]; } {
+  const suitGroups: { [suit: string]: Card[]; } = {};
+  cards.forEach(card => {
+    if (!suitGroups[card.suit]) suitGroups[card.suit] = [];
+    suitGroups[card.suit].push(card);
+  });
+  return suitGroups;
 }
 
 export function dealerQualifies(dealerFlush: Card[]): boolean {
   if (dealerFlush.length > 3) return true
   if (dealerFlush.length < 3) return false
-  return dealerFlush[0].rank >= 9
+  return highCard(dealerFlush) >= 9
 }
 
 export function compareFlushes(firstFlush: Card[], secondFlush: Card[]): number {
@@ -214,10 +267,10 @@ export async function performSimulation(
   const anteAmount = 1
   const flushRushBet = 1
   const superFlushRushBet = 1
-  const betTotals: { [key: string]: { totalBet: number; totalWon: number; handsWon: number; handsLost: number } } = {
-    'Base Game (Ante + Play)': { totalBet: 0, totalWon: 0, handsWon: 0, handsLost: 0 },
-    'Flush Rush Bonus': { totalBet: 0, totalWon: 0, handsWon: 0, handsLost: 0 },
-    'Super Flush Rush Bonus': { totalBet: 0, totalWon: 0, handsWon: 0, handsLost: 0 }
+  const betTotals: { [key: string]: BetResults } = {
+    'Base Game (Ante + Play)': new BetResults(),
+    'Flush Rush Bonus': new BetResults(),
+    'Super Flush Rush Bonus': new BetResults()
   }
   let handsAboveMinimum = 0
   let handsBelowMinimum = 0
@@ -231,57 +284,46 @@ export async function performSimulation(
     const dealerHand = sortHandBySuitThenRank(shuffledDeck.slice(7, 14))
     const playerFlush = findBestFlush(playerHand)
     const dealerFlush = findBestFlush(dealerHand)
-    const playerStraightFlush = findLongestStraightFlush(playerHand)
-    const highCardValue = playerFlush.length > 0 ? playerFlush[0].rank : 0
-    const shouldFold = playerFlush.length < 3 || (playerFlush.length === 3 && minThreeCardFlushRank !== 0 && highCardValue < minThreeCardFlushRank)
 
-    if (shouldFold) handsBelowMinimum++
-    else handsAboveMinimum++
-
-    const dealerQualified = dealerQualifies(dealerFlush)
-
-    if (shouldFold) {
-      betTotals['Base Game (Ante + Play)'].totalBet += anteAmount
-      betTotals['Base Game (Ante + Play)'].handsLost++
+    if (playerShouldFold(playerFlush, minThreeCardFlushRank)) {
+      // Player folds
+      handsBelowMinimum++
+      betTotals['Base Game (Ante + Play)'].recordLoss(anteAmount)
     } else {
+      // Player plays
+      handsAboveMinimum++
       const playWager = getMaxPlayWager(playerFlush.length, anteAmount)
       const totalWager = anteAmount + playWager
-      betTotals['Base Game (Ante + Play)'].totalBet += totalWager
 
-      if (!dealerQualified) {
-        betTotals['Base Game (Ante + Play)'].totalWon += totalWager + anteAmount
-        betTotals['Base Game (Ante + Play)'].handsWon++
-      } else {
+      if (dealerQualifies(dealerFlush)) {
         const comparison = compareFlushes(playerFlush, dealerFlush)
         if (comparison > 0) {
-          betTotals['Base Game (Ante + Play)'].totalWon += totalWager + totalWager
-          betTotals['Base Game (Ante + Play)'].handsWon++
+          betTotals['Base Game (Ante + Play)'].recordWin(totalWager, totalWager)
         } else if (comparison < 0) {
-          betTotals['Base Game (Ante + Play)'].handsLost++
+          betTotals['Base Game (Ante + Play)'].recordLoss(totalWager)
         } else {
-          betTotals['Base Game (Ante + Play)'].totalWon += totalWager
+          betTotals['Base Game (Ante + Play)'].recordPush(totalWager)
         }
+      } else {
+        betTotals['Base Game (Ante + Play)'].recordWin(totalWager, anteAmount)
       }
     }
 
     const flushRushMultiplier = calculateFlushRushPayout(playerFlush.length, payoutConfig)
     const flushRushPayout = flushRushMultiplier > 0 ? flushRushBet * flushRushMultiplier : 0
-    betTotals['Flush Rush Bonus'].totalBet += flushRushBet
     if (flushRushPayout > 0) {
-      betTotals['Flush Rush Bonus'].totalWon += flushRushBet + flushRushPayout
-      betTotals['Flush Rush Bonus'].handsWon++
+      betTotals['Flush Rush Bonus'].recordWin(flushRushBet, flushRushPayout)
     } else {
-      betTotals['Flush Rush Bonus'].handsLost++
+      betTotals['Flush Rush Bonus'].recordLoss(flushRushBet)
     }
 
-    const superFlushRushMultiplier = calculateSuperFlushRushPayout(playerStraightFlush.length, payoutConfig)
+    const playerStraightLength = findLongestStraightFlush(playerHand)
+    const superFlushRushMultiplier = calculateSuperFlushRushPayout(playerStraightLength, payoutConfig)
     const superFlushRushPayout = superFlushRushMultiplier > 0 ? superFlushRushBet * superFlushRushMultiplier : 0
-    betTotals['Super Flush Rush Bonus'].totalBet += superFlushRushBet
     if (superFlushRushPayout > 0) {
-      betTotals['Super Flush Rush Bonus'].totalWon += superFlushRushBet + superFlushRushPayout
-      betTotals['Super Flush Rush Bonus'].handsWon++
+      betTotals['Super Flush Rush Bonus'].recordWin(superFlushRushBet, superFlushRushPayout)
     } else {
-      betTotals['Super Flush Rush Bonus'].handsLost++
+      betTotals['Super Flush Rush Bonus'].recordLoss(superFlushRushBet)
     }
 
     if (onProgress && hand % updateFrequency === 0) {
@@ -319,4 +361,12 @@ export async function performSimulation(
     results: simulationResults,
     handDistribution: handDistributionStats
   }
+}
+
+export function highCard(flush: Card[]) {
+  return flush.length > 0 ? flush[0].rank : 0;
+}
+
+export function playerShouldFold(flush: Card[], minRank: number) {
+  return flush.length < 3 || (flush.length === 3 && minRank !== 0 && highCard(flush) < minRank);
 }
