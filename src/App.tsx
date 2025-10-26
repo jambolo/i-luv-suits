@@ -92,6 +92,9 @@ Bonus Bets (optional):
   const simulateHandsUI = async () => {
     setIsSimulating(true)
     setSimulationProgress(0)
+    setResults([])
+    setHandDistribution(null)
+    setPerformanceMetrics(null)
     const startTime = performance.now()
     const hw = typeof navigator !== 'undefined' && (navigator as any).hardwareConcurrency ? (navigator as any).hardwareConcurrency : 4
     const workerCount = Math.max(1, Math.min(hw, numHands))
@@ -379,7 +382,7 @@ Bonus Bets (optional):
           </Card>
         )}
 
-        {results.length > 0 && (
+        {results.length > 0 && !isSimulating && (
           <Card>
             <CardHeader>
               <CardTitle>Expected Return Analysis</CardTitle>
@@ -422,7 +425,7 @@ Bonus Bets (optional):
           </Card>
         )}
 
-        {performanceMetrics && (
+        {performanceMetrics && !isSimulating && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -499,7 +502,7 @@ Bonus Bets (optional):
           </Card>
         )}
 
-        {handDistribution && (
+        {handDistribution && !isSimulating && (
           <Card>
             <CardHeader>
               <CardTitle>Hand Distribution Analysis</CardTitle>
