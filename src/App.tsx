@@ -381,6 +381,82 @@ Bonus Bets (optional):
           </Card>
         )}
 
+        {handDistribution && !isSimulating && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Hand Distribution Analysis</CardTitle>
+              <CardDescription>
+                {minThreeCardFlushRank === 0 
+                  ? 'Percentage of hands with 3+ flush cards (no minimum required)'
+                  : `Percentage of hands above and below the minimum 3-card flush threshold (${getMinFlushDisplayText()}+ high card)`
+                }
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="text-center space-y-2">
+                  <div className="text-3xl font-bold text-green-600">
+                    {handDistribution.aboveMinimumPercentage.toFixed(1)}%
+                  </div>
+                  <div className="text-sm text-muted-foreground">Hands Above Minimum</div>
+                  <div className="text-xs text-muted-foreground">
+                    {handDistribution.aboveMinimum.toLocaleString()} / {handDistribution.totalHands.toLocaleString()} hands
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {minThreeCardFlushRank === 0 
+                      ? '(3+ flush cards)' 
+                      : `(4+ flush cards OR 3-card flush with ${getMinFlushDisplayText()}+ high card)`
+                    }
+                  </div>
+                </div>
+                
+                <div className="text-center space-y-2">
+                  <div className="text-3xl font-bold text-red-600">
+                    {handDistribution.belowMinimumPercentage.toFixed(1)}%
+                  </div>
+                  <div className="text-sm text-muted-foreground">Hands Below Minimum</div>
+                  <div className="text-xs text-muted-foreground">
+                    {handDistribution.belowMinimum.toLocaleString()} / {handDistribution.totalHands.toLocaleString()} hands
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {minThreeCardFlushRank === 0 
+                      ? '(0-2 flush cards)' 
+                      : `(0-2 flush cards OR 3-card flush with <${getMinFlushDisplayText()} high card)`
+                    }
+                  </div>
+                </div>
+                
+                <div className="text-center space-y-2">
+                  <div className="text-3xl font-bold text-blue-600">
+                    {((handDistribution.aboveMinimum / handDistribution.belowMinimum) || 0).toFixed(2)}:1
+                  </div>
+                  <div className="text-sm text-muted-foreground">Play to Fold Ratio</div>
+                  <div className="text-xs text-muted-foreground">
+                    How many hands we play vs fold
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mt-6">
+                <div className="flex h-2 rounded-full overflow-hidden">
+                  <div 
+                    className="bg-green-500" 
+                    style={{ width: `${handDistribution.aboveMinimumPercentage}%` }}
+                  ></div>
+                  <div 
+                    className="bg-red-500" 
+                    style={{ width: `${handDistribution.belowMinimumPercentage}%` }}
+                  ></div>
+                </div>
+                <div className="flex justify-between text-xs text-muted-foreground mt-2">
+                  <span>Play ({handDistribution.aboveMinimumPercentage.toFixed(1)}%)</span>
+                  <span>Fold ({handDistribution.belowMinimumPercentage.toFixed(1)}%)</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {results.length > 0 && !isSimulating && (
           <Card>
             <CardHeader>
@@ -495,82 +571,6 @@ Bonus Bets (optional):
                   <div className="font-medium">
                     {seedValue ? 'Deterministic' : 'Random'}
                   </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {handDistribution && !isSimulating && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Hand Distribution Analysis</CardTitle>
-              <CardDescription>
-                {minThreeCardFlushRank === 0 
-                  ? 'Percentage of hands with 3+ flush cards (no minimum required)'
-                  : `Percentage of hands above and below the minimum 3-card flush threshold (${getMinFlushDisplayText()}+ high card)`
-                }
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="text-center space-y-2">
-                  <div className="text-3xl font-bold text-green-600">
-                    {handDistribution.aboveMinimumPercentage.toFixed(1)}%
-                  </div>
-                  <div className="text-sm text-muted-foreground">Hands Above Minimum</div>
-                  <div className="text-xs text-muted-foreground">
-                    {handDistribution.aboveMinimum.toLocaleString()} / {handDistribution.totalHands.toLocaleString()} hands
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {minThreeCardFlushRank === 0 
-                      ? '(3+ flush cards)' 
-                      : `(4+ flush cards OR 3-card flush with ${getMinFlushDisplayText()}+ high card)`
-                    }
-                  </div>
-                </div>
-                
-                <div className="text-center space-y-2">
-                  <div className="text-3xl font-bold text-red-600">
-                    {handDistribution.belowMinimumPercentage.toFixed(1)}%
-                  </div>
-                  <div className="text-sm text-muted-foreground">Hands Below Minimum</div>
-                  <div className="text-xs text-muted-foreground">
-                    {handDistribution.belowMinimum.toLocaleString()} / {handDistribution.totalHands.toLocaleString()} hands
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {minThreeCardFlushRank === 0 
-                      ? '(0-2 flush cards)' 
-                      : `(0-2 flush cards OR 3-card flush with <${getMinFlushDisplayText()} high card)`
-                    }
-                  </div>
-                </div>
-                
-                <div className="text-center space-y-2">
-                  <div className="text-3xl font-bold text-blue-600">
-                    {((handDistribution.aboveMinimum / handDistribution.belowMinimum) || 0).toFixed(2)}:1
-                  </div>
-                  <div className="text-sm text-muted-foreground">Play to Fold Ratio</div>
-                  <div className="text-xs text-muted-foreground">
-                    How many hands we play vs fold
-                  </div>
-                </div>
-              </div>
-              
-              <div className="mt-6">
-                <div className="flex h-2 rounded-full overflow-hidden">
-                  <div 
-                    className="bg-green-500" 
-                    style={{ width: `${handDistribution.aboveMinimumPercentage}%` }}
-                  ></div>
-                  <div 
-                    className="bg-red-500" 
-                    style={{ width: `${handDistribution.belowMinimumPercentage}%` }}
-                  ></div>
-                </div>
-                <div className="flex justify-between text-xs text-muted-foreground mt-2">
-                  <span>Play ({handDistribution.aboveMinimumPercentage.toFixed(1)}%)</span>
-                  <span>Fold ({handDistribution.belowMinimumPercentage.toFixed(1)}%)</span>
                 </div>
               </div>
             </CardContent>
