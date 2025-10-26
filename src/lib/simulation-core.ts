@@ -115,6 +115,7 @@ export function shuffleDeckWithRng(deck: Card[], rng: RNG): Card[] {
   return shuffled
 }
 
+// Returns an arbitrary numeric order for suits for sorting
 export function getSuitOrder(suit: Suit): number {
   switch (suit) {
     case '♠': return 0
@@ -125,6 +126,7 @@ export function getSuitOrder(suit: Suit): number {
   }
 }
 
+// Sorts cards by suit (♠, ♥, ♦, ♣) then by descending rank
 export function sortHandBySuitThenRank(cards: Card[]): Card[] {
   return [...cards].sort((a, b) => {
     const suitDiff = getSuitOrder(a.suit) - getSuitOrder(b.suit)
@@ -133,17 +135,18 @@ export function sortHandBySuitThenRank(cards: Card[]): Card[] {
   })
 }
 
+// Returns the best flush in the hand
+// Assumes cards are sorted by suit then descending rank
+// Returned flush is also sorted by descending rank
 export function findBestFlush(cards: Card[]): Card[] {
-  const suitGroups: { [suit: string]: Card[] } = {}
-  cards.forEach(card => {
-    if (!suitGroups[card.suit]) suitGroups[card.suit] = []
-    suitGroups[card.suit].push(card)
-  })
+  const suitGroups = divideHandIntoSuits(cards)
   return Object.values(suitGroups).reduce((bestFlush, currentFlush) => {
     return compareFlushes(currentFlush, bestFlush) > 0 ? currentFlush : bestFlush
   }, [] as Card[])
 }
 
+// Returns the length of the longest straight flush in the hand
+// Assumes cards are sorted by suit then descending rank
 export function findLongestStraightFlush(cards: Card[]): number {
   const suitGroups = divideHandIntoSuits(cards);
   let longest = 0;
@@ -157,13 +160,15 @@ export function findLongestStraightFlush(cards: Card[]): number {
   return longest
 }
 
+// Returns the length of the longest straight considering Ace as low (1)
+// Assumes flush is sorted in descending order
 export function findLowAceStraight(flush: Card[]): number {
   if (flush.length === 0) return 0
   let longest = 0;
   // If there is an Ace, check for 2, 3, ... at the end.
   if (highCard(flush) === 14) {
     let length = 1;
-    let i = flush.length - 1;
+    let i = flush.length; // Pretend like the Ace is after the end
     let prev = 1; // Start with low Ace
     while (i > 0) {
       const current = flush[i - 1].rank;
@@ -177,10 +182,13 @@ export function findLowAceStraight(flush: Card[]): number {
       prev = current;
       i--;
     }
+    longest = Math.max(longest, length);
   }
   return longest
 }
 
+// Returns the length of the longest straight considering Ace high (14)
+// Assumes flush is sorted in descending order
 export function findLongestStraight(flush: Card[]): number {
   if (flush.length === 0) return 0
   let longest = 0
@@ -199,9 +207,12 @@ export function findLongestStraight(flush: Card[]): number {
     prev = current;
     i++;
   }
+  longest = Math.max(longest, length);
   return longest
 }
 
+// Divides a hand into suits, returns an object mapping suit to array of cards sorted by descending rank
+// Assumes cards are sorted by suit then descending rank
 export function divideHandIntoSuits(cards: Card[]): { [suit: string]: Card[]; } {
   const suitGroups: { [suit: string]: Card[]; } = {};
   cards.forEach(card => {
@@ -211,12 +222,16 @@ export function divideHandIntoSuits(cards: Card[]): { [suit: string]: Card[]; } 
   return suitGroups;
 }
 
-export function dealerQualifies(dealerFlush: Card[]): boolean {
-  if (dealerFlush.length > 3) return true
-  if (dealerFlush.length < 3) return false
-  return highCard(dealerFlush) >= 9
+// Dealer qualifies with more than 3 cards or with 3 cards and high card 9 or above
+// Assumes flush is sorted by descending rank
+export function dealerQualifies(flush: Card[]): boolean {
+  if (flush.length > 3) return true
+  if (flush.length < 3) return false
+  return highCard(flush) >= 9
 }
 
+// Compares two flushes, returns positive if firstFlush is better, negative if secondFlush is better, zero if equal
+// Assumes flushes are sorted by descending rank
 export function compareFlushes(firstFlush: Card[], secondFlush: Card[]): number {
   const lengthDiff = firstFlush.length - secondFlush.length
   if (lengthDiff !== 0) return lengthDiff
@@ -229,12 +244,14 @@ export function compareFlushes(firstFlush: Card[], secondFlush: Card[]): number 
   return 0
 }
 
+// Returns the maximum play wager based on number of flush cards
 export function getMaxPlayWager(flushCards: number, anteAmount: number): number {
   if (flushCards >= 6) return anteAmount * 3
   if (flushCards >= 5) return anteAmount * 2
   return anteAmount * 1
 }
 
+// Returns the Flush Rush payout multiplier based on number of flush cards
 export function calculateFlushRushPayout(flushCards: number, payoutConfig: PayoutConfig): number {
   if (flushCards >= 7) return payoutConfig.flushRush.sevenCard
   if (flushCards >= 6) return payoutConfig.flushRush.sixCard
@@ -243,6 +260,7 @@ export function calculateFlushRushPayout(flushCards: number, payoutConfig: Payou
   return 0
 }
 
+// Returns the Super Flush Rush payout multiplier based on length of straight flush
 export function calculateSuperFlushRushPayout(straightFlushCards: number, payoutConfig: PayoutConfig): number {
   if (straightFlushCards >= 7) return payoutConfig.superFlushRush.sevenCardStraight
   if (straightFlushCards >= 6) return payoutConfig.superFlushRush.sixCardStraight
@@ -363,10 +381,14 @@ export async function performSimulation(
   }
 }
 
-export function highCard(flush: Card[]) {
+// Returns the high card rank from the flush, or 0 if flush is empty
+// Assumes flush is sorted by descending rank
+export function highCard(flush: Card[]): number {
   return flush.length > 0 ? flush[0].rank : 0;
 }
 
-export function playerShouldFold(flush: Card[], minRank: number) {
+// Returns true if player should fold based on flush and minimum rank
+// Assumes flush is sorted by descending rank
+export function playerShouldFold(flush: Card[], minRank: number): boolean {
   return flush.length < 3 || (flush.length === 3 && minRank !== 0 && highCard(flush) < minRank);
 }

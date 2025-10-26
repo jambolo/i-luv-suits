@@ -5,6 +5,7 @@ import {
   createDeck,
   shuffleDeckWithRng,
   sortHandBySuitThenRank,
+  getSuitOrder,
   findBestFlush,
   findLongestStraightFlush,
   findLowAceStraight,
@@ -18,7 +19,11 @@ import {
   performSimulation,
   highCard,
   playerShouldFold,
-  PayoutConfig
+  BetResults,
+  PayoutConfig,
+  Card,
+  Suit,
+  Rank
 } from '../simulation-core'
 
 describe('simulation-core public API', () => {
@@ -82,7 +87,7 @@ describe('simulation-core public API', () => {
     // fill to 7 with other suits
     const playerHand1 = [...hearts, { suit: '♠', rank: 2 as any }, { suit: '♦', rank: 3 as any }]
     const len1 = findLongestStraightFlush(playerHand1 as any)
-    expect(len1).toBeGreaterThanOrEqual(5)
+    expect(len1).toBe(5)
 
     // Ace-low wheel: A,5,4,3,2 of clubs
     const wheel = [{ suit: '♣', rank: 14 as any }, { suit: '♣', rank: 5 as any }, { suit: '♣', rank: 4 as any }, { suit: '♣', rank: 3 as any }, { suit: '♣', rank: 2 as any }]
@@ -133,6 +138,74 @@ describe('simulation-core public API', () => {
     for (const r of summary.results) {
       expect(typeof r.totalBet).toBe('number')
       expect(typeof r.totalWon).toBe('number')
+    }
+  })
+
+  it('produces deterministic results for same seed', async () => {
+    const cfg: PayoutConfig = {
+      flushRush: { sevenCard: 100, sixCard: 20, fiveCard: 10, fourCard: 2 },
+      superFlushRush: { sevenCardStraight: 500, sixCardStraight: 200, fiveCardStraight: 100, fourCardStraight: 50, threeCardStraight: 9 }
+    }
+    const summary1 = await performSimulation(50, cfg, 9, mulberry32(12345))
+    const summary2 = await performSimulation(50, cfg, 9, mulberry32(12345))
+    
+    expect(summary1.handDistribution).toEqual(summary2.handDistribution)
+    expect(summary1.results).toEqual(summary2.results)
+  })
+
+  it('returns properly sorted arrays from sorting helpers', () => {
+    // Unsorted hand (mixed suits and ranks)
+    const unsorted: Card[] = [
+      { suit: '♥', rank: 2 },
+      { suit: '♠', rank: 14 },
+      { suit: '♠', rank: 10 },
+      { suit: '♣', rank: 13 },
+      { suit: '♥', rank: 11 },
+      { suit: '♠', rank: 9 },
+      { suit: '♣', rank: 2 }
+    ]
+
+    const sorted = sortHandBySuitThenRank(unsorted)
+
+    // Verify overall suit ordering is non-decreasing according to getSuitOrder
+    for (let i = 1; i < sorted.length; i++) {
+      const prevSuitOrder = getSuitOrder(sorted[i - 1].suit)
+      const curSuitOrder = getSuitOrder(sorted[i].suit)
+      expect(prevSuitOrder).toBeLessThanOrEqual(curSuitOrder)
+      // If same suit, ranks should be non-increasing
+      if (prevSuitOrder === curSuitOrder) {
+        expect(sorted[i - 1].rank).toBeGreaterThanOrEqual(sorted[i].rank)
+      }
+    }
+
+    // Use the sorted hand to derive suit groups
+    const groups = divideHandIntoSuits(sorted)
+    // Each group's cards should be sorted descending by rank
+    for (const suitKey of Object.keys(groups)) {
+      const arr = groups[suitKey]
+      for (let i = 1; i < arr.length; i++) {
+        expect(arr[i - 1].rank).toBeGreaterThanOrEqual(arr[i].rank)
+      }
+    }
+
+    // Ensure findBestFlush returns a flush with same suit and descending ranks
+    const handWithFlush: Card[] = [
+      { suit: '♠', rank: 14 },
+      { suit: '♠', rank: 13 },
+      { suit: '♠', rank: 11 },
+      { suit: '♥', rank: 12 },
+      { suit: '♦', rank: 10 },
+      { suit: '♣', rank: 9 }
+    ]
+
+    const sortedFlushHand = sortHandBySuitThenRank(handWithFlush)
+    const bestFlush = findBestFlush(sortedFlushHand)
+    if (bestFlush.length > 0) {
+      const suit = bestFlush[0].suit
+      expect(bestFlush.every(c => c.suit === suit)).toBe(true)
+      for (let i = 1; i < bestFlush.length; i++) {
+        expect(bestFlush[i - 1].rank).toBeGreaterThanOrEqual(bestFlush[i].rank)
+      }
     }
   })
 })
