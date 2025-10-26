@@ -3,7 +3,7 @@ import {
   PayoutConfig,
   SimulationResult,
   HandDistributionStats,
-  runSimulationInWorker
+  runSimulationInWorkers
 } from './lib/simulation'
 import { toast } from 'sonner'
 import { Toaster } from '@/components/ui/sonner'
@@ -15,7 +15,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Progress } from '@/components/ui/progress'
-import { Play, ChartBar, TrendDown, TrendUp, Gear } from '@phosphor-icons/react'
+import { Play, ChartBar, TrendDown, TrendUp, Gear, Lightning } from '@phosphor-icons/react'
+
+interface PerformanceMetrics {
+  totalDuration: number
+  handsPerSecond: number
+  workerCount: number
+  hardwareConcurrency: number
+  handsProcessed: number
+}
 
 // Static data moved outside component to avoid recreation on each render
 const suits = ['♠', '♥', '♦', '♣']
@@ -28,8 +36,9 @@ function App() {
   const [results, setResults] = useState<SimulationResult[]>([])
   const [showConfig, setShowConfig] = useState(false)
   const [handDistribution, setHandDistribution] = useState<HandDistributionStats | null>(null)
+  const [performanceMetrics, setPerformanceMetrics] = useState<PerformanceMetrics | null>(null)
   const [numHands, setNumHands] = useState(1000000)
-  const [minThreeCardFlushRank, setMinThreeCardFlushRank] = useState(9) // Minimum high card value for 3-card flush (0 = none)
+  const [minThreeCardFlushRank, setMinThreeCardFlushRank] = useState(9)
   const [seedValue, setSeedValue] = useState<string | number | undefined>(undefined)
   
   const [payoutConfig, setPayoutConfig] = useState<PayoutConfig>({
@@ -80,20 +89,34 @@ Bonus Bets (optional):
 • Super Flush Rush Bonus: Pays based on player's straight flush cards (3+ to win)
 • Bonus bets win/lose regardless of base game outcome`
 
-  // ...existing code...
   const simulateHandsUI = async () => {
     setIsSimulating(true)
     setSimulationProgress(0)
+    const startTime = performance.now()
+    const hw = typeof navigator !== 'undefined' && (navigator as any).hardwareConcurrency ? (navigator as any).hardwareConcurrency : 4
+    const workerCount = Math.max(1, Math.min(hw, numHands))
+    
     try {
-      const summary = await runSimulationInWorker(
+      const summary = await runSimulationInWorkers(
         numHands,
         payoutConfig,
         minThreeCardFlushRank,
         (progress) => setSimulationProgress(progress),
-        seedValue
+        seedValue,
+        workerCount
       )
+      const endTime = performance.now()
+      const duration = (endTime - startTime) / 1000
+      
       setResults(summary.results)
       setHandDistribution(summary.handDistribution)
+      setPerformanceMetrics({
+        totalDuration: duration,
+        handsPerSecond: numHands / duration,
+        workerCount,
+        hardwareConcurrency: hw,
+        handsProcessed: numHands
+      })
       setSimulationProgress(100)
     } catch (err) {
       console.error('Simulation worker error', err)
@@ -395,6 +418,83 @@ Bonus Bets (optional):
                   ))}
                 </TableBody>
               </Table>
+            </CardContent>
+          </Card>
+        )}
+
+        {performanceMetrics && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Lightning className="w-5 h-5" />
+                Performance Summary
+              </CardTitle>
+              <CardDescription>Simulation execution metrics and system information</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="text-center space-y-2">
+                  <div className="text-3xl font-bold text-primary">
+                    {performanceMetrics.handsPerSecond.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Hands per Second</div>
+                  <div className="text-xs text-muted-foreground">
+                    Processing speed
+                  </div>
+                </div>
+                
+                <div className="text-center space-y-2">
+                  <div className="text-3xl font-bold text-accent">
+                    {performanceMetrics.totalDuration.toFixed(2)}s
+                  </div>
+                  <div className="text-sm text-muted-foreground">Total Duration</div>
+                  <div className="text-xs text-muted-foreground">
+                    {performanceMetrics.handsProcessed.toLocaleString()} hands processed
+                  </div>
+                </div>
+                
+                <div className="text-center space-y-2">
+                  <div className="text-3xl font-bold text-secondary-foreground">
+                    {performanceMetrics.workerCount}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Workers Used</div>
+                  <div className="text-xs text-muted-foreground">
+                    {performanceMetrics.hardwareConcurrency} threads available
+                  </div>
+                </div>
+              </div>
+              
+              <Separator className="my-6" />
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div className="space-y-1">
+                  <div className="text-muted-foreground">Avg per Worker</div>
+                  <div className="font-medium">
+                    {Math.floor(performanceMetrics.handsProcessed / performanceMetrics.workerCount).toLocaleString()} hands
+                  </div>
+                </div>
+                
+                <div className="space-y-1">
+                  <div className="text-muted-foreground">Time per Hand</div>
+                  <div className="font-medium">
+                    {((performanceMetrics.totalDuration * 1000000) / performanceMetrics.handsProcessed).toFixed(2)} μs
+                  </div>
+                </div>
+                
+                <div className="space-y-1">
+                  <div className="text-muted-foreground">Parallelization</div>
+                  <div className="font-medium">
+                    {((performanceMetrics.workerCount / performanceMetrics.hardwareConcurrency) * 100).toFixed(0)}%
+                  </div>
+                </div>
+                
+                <div className="space-y-1">
+                  <div className="text-muted-foreground">Execution Mode</div>
+                  <div className="font-medium">
+                    {seedValue ? 'Deterministic' : 'Random'}
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         )}
